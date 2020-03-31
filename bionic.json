@@ -1,0 +1,67 @@
+{
+  "variables": {
+    "build_name": "bionic",
+    "iso_url": "http://cdimage.ubuntu.com/ubuntu/releases/bionic/release/ubuntu-18.04.4-server-amd64.iso",
+    "iso_checksum": "e2ecdace33c939527cbc9e8d23576381c493b071107207d2040af72595f8990b",
+    "root_password": "t00r",
+    "ssh_pubkey": ""
+  },
+  "builders": [
+    {
+      "type": "virtualbox-iso",
+      "guest_os_type": "Ubuntu_64",
+      "guest_additions_mode": "disable",
+      "headless": true,
+      "iso_url": "{{user `iso_url`}}",
+      "iso_checksum": "{{user `iso_checksum`}}",
+      "iso_checksum_type": "sha256",
+      "ssh_username": "root",
+      "ssh_password": "{{user `root_password`}}",
+      "boot_command": [
+        "<esc><wait>",
+        "<esc><wait>",
+        "<enter><wait>",
+        "/install/vmlinuz",
+        " initrd=/install/initrd.gz",
+        " hostname={{user `build_name`}}",
+        " priority=critical",
+        " locale=en_US",
+        " partman-basicfilesystems/no_swap=false",
+        " partman-auto/expert_recipe=\"root :: 1000 50 -1 ext4 $primary{ } $bootable{ } method{ format } format{ } use_filesystem{ } filesystem{ ext4 } mountpoint{ / } .\"",
+        " partman-auto/choose_recipe=root",
+        " partman-auto/method=regular",
+        " partman-md/confirm=true",
+        " partman-partitioning/confirm_write_new_label=true",
+        " partman/choose_partition=finish",
+        " partman/confirm=true",
+        " partman/confirm_nooverwrite=true",
+        " passwd/make-user=false",
+        " passwd/root-login=true",
+        " passwd/root-password={{user `root_password`}}",
+        " passwd/root-password-again={{user `root_password`}}",
+        " user-setup/allow-password-weak=true",
+        " pkgsel/include=openssh-server",
+        " preseed/late_command=\"echo PermitRootLogin yes >> /target/etc/ssh/sshd_config\"",
+        " finish-install/reboot_in_progress=note",
+        " -- <wait><enter>"
+      ],
+      "shutdown_command": "shutdown -P now",
+      "vboxmanage": [
+        ["modifyvm", "{{.Name}}", "--cpus", "2"],
+        ["modifyvm", "{{.Name}}", "--memory", "1024"]
+      ]
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "inline": [
+        "test -n '{{user `ssh_pubkey`}}' && sed -i '/^PermitRootLogin yes$/d' /etc/ssh/sshd_config",
+        "test -n '{{user `ssh_pubkey`}}' && bash -c 'install -D -T <(echo \"{{user `ssh_pubkey`}}\") /root/.ssh/authorized_keys'",
+        "bash -c 'install -m 0700 -D -T <(echo \"#!/bin/sh -e\nDEBIAN_FRONTEND=noninteractive dpkg-reconfigure openssh-server\nrm /etc/rc.local\nexit 0\") /etc/rc.local'",
+        "rm /etc/ssh/ssh_host_*",
+        "truncate -s 0 /etc/machine-id"
+      ]
+    }
+  ]
+}

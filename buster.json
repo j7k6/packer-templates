@@ -1,0 +1,65 @@
+{
+  "variables": {
+    "build_name": "buster",
+    "iso_url": "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-10.3.0-amd64-netinst.iso",
+    "iso_checksum": "6a901b5abe43d88b39d627e1339d15507cc38f980036b928f835e0f0e957d3d8",
+    "root_password": "t00r",
+    "ssh_pubkey": ""
+  },
+  "builders": [
+    {
+      "type": "virtualbox-iso",
+      "guest_os_type": "Debian_64",
+      "guest_additions_mode": "disable",
+      "headless": true,
+      "iso_url": "{{user `iso_url`}}",
+      "iso_checksum": "{{user `iso_checksum`}}",
+      "iso_checksum_type": "sha256",
+      "ssh_username": "root",
+      "ssh_password": "{{user `root_password`}}",
+      "boot_command": [
+        "<esc><wait>",
+        "/install.amd/vmlinuz",
+        " initrd=/install.amd/initrd.gz",
+        " hostname={{user `build_name`}}",
+        " priority=critical",
+        " keymap=us",
+        " locale=en_US",
+        " partman-basicfilesystems/no_swap=false",
+        " partman-auto/expert_recipe=\"root :: 1000 50 -1 ext4 $primary{ } $bootable{ } method{ format } format{ } use_filesystem{ } filesystem{ ext4 } mountpoint{ / } .\"",
+        " partman-auto/choose_recipe=root",
+        " partman-auto/method=regular",
+        " partman-md/confirm=true",
+        " partman-partitioning/confirm_write_new_label=true",
+        " partman/choose_partition=finish",
+        " partman/confirm=true",
+        " partman/confirm_nooverwrite=true",
+        " passwd/make-user=false",
+        " passwd/root-password={{user `root_password`}}",
+        " passwd/root-password-again={{user `root_password`}}",
+        " tasks=standard,ssh-server",
+        " preseed/late_command=\"echo PermitRootLogin yes >> /target/etc/ssh/sshd_config\"",
+        " grub-installer/bootdev=/dev/sda",
+        " finish-install/reboot_in_progress=note",
+        " -- <wait><enter>"
+      ],
+      "shutdown_command": "shutdown -P now",
+      "vboxmanage": [
+        ["modifyvm", "{{.Name}}", "--cpus", "2"],
+        ["modifyvm", "{{.Name}}", "--memory", "1024"]
+      ]
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "inline": [
+        "test -n '{{user `ssh_pubkey`}}' && sed -i '/^PermitRootLogin yes$/d' /etc/ssh/sshd_config",
+        "test -n '{{user `ssh_pubkey`}}' && bash -c 'install -D -T <(echo \"{{user `ssh_pubkey`}}\") /root/.ssh/authorized_keys'",
+        "bash -c 'install -m 0700 -D -T <(echo \"#!/bin/sh -e\nDEBIAN_FRONTEND=noninteractive dpkg-reconfigure openssh-server\nrm /etc/rc.local\nexit 0\") /etc/rc.local'",
+        "rm /etc/ssh/ssh_host_*",
+        "truncate -s 0 /etc/machine-id"
+      ]
+    }
+  ]
+}
